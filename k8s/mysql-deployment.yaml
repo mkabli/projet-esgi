@@ -1,0 +1,71 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mysql-pvc
+  namespace: paymybuddy
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: paymybuddy-db
+  namespace: paymybuddy
+spec:
+  selector:
+    matchLabels:
+      app: paymybuddy-db
+  template:
+    metadata:
+      labels:
+        app: paymybuddy-db
+    spec:
+      containers:
+      - name: mysql
+        image: mysql:5.7
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: paymybuddy-secret
+              key: SPRING_DATASOURCE_PASSWORD
+        - name: MYSQL_DATABASE
+          value: "paymybuddy"
+        - name: MYSQL_USER
+          valueFrom:
+            configMapKeyRef:
+              name: paymybuddy-config
+              key: SPRING_DATASOURCE_USERNAME
+        - name: MYSQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: paymybuddy-secret
+              key: SPRING_DATASOURCE_PASSWORD
+        ports:
+        - containerPort: 3306
+        volumeMounts:
+        - name: mysql-storage
+          mountPath: /var/lib/mysql
+      volumes:
+      - name: mysql-storage
+        persistentVolumeClaim:
+          claimName: mysql-pvc
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: paymybuddy-db
+  namespace: paymybuddy
+spec:
+  selector:
+    app: paymybuddy-db
+  ports:
+    - protocol: TCP
+      port: 3306
+      targetPort: 3306
